@@ -1,0 +1,86 @@
+.container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    padding: 16px;
+    box-sizing: border-box;
+    padding-top: 64px; /* 增加顶部间距，避免与导航栏冲突 */
+  }
+  
+  .header {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 16px;
+  }
+  
+  .title {
+    font-size: 24px;
+    font-weight: bold;
+    margin-bottom: 8px;
+  }
+  
+  .new-todo {
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+  }
+  
+  .todo-list {
+    flex: 1;
+    overflow-y: auto;
+  }
+  
+  .todo-item {
+    display: flex;
+    align-items: center;
+    padding: 8px;
+    border-bottom: 1px solid #eee;
+  }
+  
+  .todo-checkbox {
+    margin-right: 8px;
+  }
+  
+  .todo-text {
+    flex: 1;
+    font-size: 16px;
+  }
+  
+  .todo-text.completed {
+    text-decoration: line-through;
+    color: #aaa;
+  }
+  
+  .delete-btn {
+    background-color: #87CEEB; /* 修改背景颜色为淡蓝色 */
+    color: white;
+    border: none;
+    padding: 4px 8px;
+    font-size: 12px;
+    border-radius: 4px;
+  }
+
+  .todo-text-wrapper {
+    cursor: pointer; /* 添加点击样式 */
+  }
+
+  .checkbox-wrapper {
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 8px;
+    cursor: pointer;
+  }
+
+  .checkbox {
+    width: 16px;
+    height: 16px;
+    border: 2px solid #87CEEB; /* 边框颜色为淡蓝色 */
+    border-radius: 4px;
+  }
+
+  .checkbox.checked {
+    background-color: #87CEEB; /* 勾选时背景颜色为淡蓝色 */
+  }

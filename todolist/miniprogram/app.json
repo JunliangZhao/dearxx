@@ -1,0 +1,9 @@
+{
+  "pages": [
+    "pages/todolist/todolist"
+  ],
+  "window": {
+    "navigationBarTextStyle": "black",
+    "navigationStyle": "custom"
+  }
+}
