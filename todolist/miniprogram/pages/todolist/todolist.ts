@@ -46,9 +46,27 @@ Page({
     wx.requestSubscribeMessage({
       tmplIds: ['14lu1h_J8fljME1O0ME1ecucn59dMQ84QvcSwF_M88I'], // 替换为你的订阅消息模板ID
       success: (res) => {
+        if (res['14lu1h_J8fljME1O0ME1ecucn59dMQ84QvcSwF_M88I'] === 'accept') {
         console.log('订阅成功', res);
+
+          // 调用云函数保存用户订阅信息
+        wx.cloud.callFunction({
+            name: 'saveSubscription',
+            data: {
+              templateId: '14lu1h_J8fljME1O0ME1ecucn59dMQ84QvcSwF_M88I' // 订阅的模板 ID
+          },
+            success: res => {
+              console.log('订阅信息保存成功：', res.result);
+            },
+            fail: err => {
+              console.error('订阅信息保存失败：', err);
+            }
+      });
+        } else {
+          console.log('用户拒绝订阅消息');
+        }
         this.setData({ showSubscribeModal: false }); // 关闭弹窗
-      },
+  },
       fail: (err) => {
         console.error('订阅失败', err);
         this.setData({ showSubscribeModal: false }); // 关闭弹窗
@@ -75,7 +93,7 @@ Page({
       })
       .then(() => {
         console.log('待办事项添加成功');
-        // 通知所有用户
+        // 通知所有订阅用户
         wx.cloud.callFunction({
           name: 'notifyUsers',
           data: { todo: newTodoItem },

@@ -1,0 +1,10 @@
+{
+  "name": "notifyUsers",
+  "version": "1.0.0",
+  "description": "云函数通知用户",
+  "main": "index.js",
+  "dependencies": {
+    "axios": "^0.21.1",
+    "wx-server-sdk": "^3.0.1"
+  }
+}

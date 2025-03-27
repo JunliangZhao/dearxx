@@ -1,7 +1,6 @@
 {
-  "description": "项目配置文件",
-  "miniprogramRoot": "miniprogram/",
-  "compileType": "miniprogram",
+  "cloud": true,
+  "cloudfunctionRoot": "cloudfunctions/",
   "setting": {
     "useCompilerPlugins": [
       "typescript",
@@ -20,8 +19,12 @@
     "packNpmRelationList": [],
     "ignoreUploadUnusedFiles": true,
     "compileHotReLoad": false,
-    "skylineRenderEnable": true
+    "skylineRenderEnable": true,
+    "urlCheck": false
   },
+  "description": "项目配置文件",
+  "miniprogramRoot": "miniprogram/",
+  "compileType": "miniprogram",
   "simulatorType": "wechat",
   "simulatorPluginLibVersion": {},
   "condition": {},
@@ -35,5 +38,6 @@
     "ignore": [],
     "include": []
   },
-  "appid": "wx135da8b8064edd11"
+  "appid": "wx135da8b8064edd11",
+  "cloudfunctionTemplateRoot": "cloudfunctionTemplate/"
 }
