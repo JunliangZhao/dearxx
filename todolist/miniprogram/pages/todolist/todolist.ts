@@ -1,7 +1,8 @@
 Page({
   data: {
     todos: [],
-    watcher: null // 用于存储实时监听对象
+    watcher: null, // 用于存储实时监听对象
+    showSubscribeModal: false // 控制订阅弹窗显示
   },
 
   onLoad() {
@@ -37,6 +38,28 @@ Page({
     this.setData({ newTodo: e.detail.value });
   },
 
+  showSubscribeModal() {
+    this.setData({ showSubscribeModal: true }); // 显示订阅弹窗
+  },
+
+  requestSubscribeMessage() {
+    wx.requestSubscribeMessage({
+      tmplIds: ['14lu1h_J8fljME1O0ME1ecucn59dMQ84QvcSwF_M88I'], // 替换为你的订阅消息模板ID
+      success: (res) => {
+        console.log('订阅成功', res);
+        this.setData({ showSubscribeModal: false }); // 关闭弹窗
+      },
+      fail: (err) => {
+        console.error('订阅失败', err);
+        this.setData({ showSubscribeModal: false }); // 关闭弹窗
+      }
+    });
+  },
+
+  closeSubscribeModal() {
+    this.setData({ showSubscribeModal: false }); // 用户取消订阅时关闭弹窗
+  },
+
   addTodo() {
     const { newTodo } = this.data;
     if (!newTodo.trim()) return;
@@ -46,16 +69,27 @@ Page({
       completed: false
     };
     const db = wx.cloud.database();
-        db.collection('todos')
+    db.collection('todos')
       .add({
         data: newTodoItem
-          })
-          .then(() => {
+      })
+      .then(() => {
         console.log('待办事项添加成功');
+        // 通知所有用户
+        wx.cloud.callFunction({
+          name: 'notifyUsers',
+          data: { todo: newTodoItem },
+          success(res) {
+            console.log('通知发送成功', res);
+          },
+          fail(err) {
+            console.error('通知发送失败', err);
+          }
+        });
       })
       .catch(err => {
         console.error('添加待办事项失败', err);
-});
+      });
   },
 
   deleteTodo(e: any) {
@@ -70,7 +104,7 @@ Page({
       })
       .catch(err => {
         console.error('删除待办事项失败', err);
-});
+      });
   },
 
   toggleTodo(e: any) {
