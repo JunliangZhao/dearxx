@@ -35,32 +35,51 @@
   
   .todo-item {
     display: flex;
+    justify-content: space-between; /* 左右布局 */
     align-items: center;
     padding: 8px;
     border-bottom: 1px solid #eee;
   }
   
+  .todo-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between; /* 第一行和第二行内容左右对齐 */
+  }
+
   .todo-checkbox {
     margin-right: 8px;
   }
-  
+
   .todo-text {
     flex: 1;
     font-size: 16px;
   }
-  
+
   .todo-text.completed {
     text-decoration: line-through;
     color: #aaa;
   }
   
   .delete-btn {
-    background-color: #87CEEB; /* 修改背景颜色为淡蓝色 */
+    background-color: #87CEEB; /* 按钮背景颜色 */
     color: white;
     border: none;
-    padding: 4px 8px;
-    font-size: 12px;
+    font-size: 10px; /* 调整字体大小 */
     border-radius: 4px;
+    display: flex; /* 使用 flex 布局 */
+    flex-direction: column; /* 保持上下布局 */
+    height: 30px;
+    align-items: center;
+  }
+
+  .delete-text {
+    margin-bottom: -10px;
+  }
+
+  .delete-time {
+    font-size: 8px; /* 调整时间字体大小 */
+    color: #888; /* 设置时间文本颜色 */
   }
 
   .todo-text-wrapper {
@@ -135,9 +154,17 @@
     padding: 8px 16px;
     font-size: 14px;
     border-radius: 4px;
-    margin: 8px;
+    margin: 12px;
   }
 
   .cancel-btn {
     background-color: #ccc;
+  }
+
+  .todo-created {
+    font-size: 10px; /* 非常小的字体 */
+    color: #888; /* 灰色字体 */
+    position: absolute;
+    bottom: -16px; /* 放置在删除按钮下方 */
+    right: 0; /* 与删除按钮右对齐 */
   }

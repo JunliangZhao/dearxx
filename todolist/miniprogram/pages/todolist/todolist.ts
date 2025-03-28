@@ -1,3 +1,5 @@
+import { formatTime } from "../../utils/util";
+
 Page({
   data: {
     todos: [],
@@ -15,8 +17,14 @@ Page({
     // 开启实时监听
     const watcher = db.collection('todos').watch({
       onChange: snapshot => {
-        console.log('实时数据更新:', snapshot.docs);
-        this.setData({ todos: snapshot.docs });
+        const todos = snapshot.docs.map(todo => ({
+          ...todo,
+          createdAt: todo.createdAt ? formatTime(new Date(todo.createdAt)) : '' // 格式化创建时间为 mm-dd hh:mm
+        }));
+
+        // 对 todos 进行排序：未完成的在顶部，已完成的在底部
+        const sortedTodos = todos.sort((a, b) => a.completed - b.completed);
+        this.setData({ todos: sortedTodos });
       },
       onError: err => {
         console.error('监听错误:', err);
@@ -79,35 +87,22 @@ Page({
   },
 
   addTodo() {
-    const { newTodo } = this.data;
-    if (!newTodo.trim()) return;
-
-    const newTodoItem = {
-      text: newTodo.trim(),
-      completed: false
-    };
     const db = wx.cloud.database();
-    db.collection('todos')
-      .add({
-        data: newTodoItem
-      })
-      .then(() => {
-        console.log('待办事项添加成功');
-        // 通知所有订阅用户
-        wx.cloud.callFunction({
-          name: 'notifyUsers',
-          data: { todo: newTodoItem },
-          success(res) {
-            console.log('通知发送成功', res);
-          },
-          fail(err) {
-            console.error('通知发送失败', err);
-          }
-        });
-      })
-      .catch(err => {
-        console.error('添加待办事项失败', err);
-      });
+    const newTodo = {
+      text: this.data.newTodo,
+      completed: false,
+      createdAt: new Date() // 添加创建时间
+    };
+    db.collection('todos').add({
+      data: newTodo,
+      success: res => {
+        console.log('待办事项添加成功', res);
+        this.setData({ newTodo: '' });
+      },
+      fail: err => {
+        console.error('待办事项添加失败', err);
+      }
+    });
   },
 
   deleteTodo(e: any) {
