@@ -3,20 +3,43 @@
     <text class="title">待办事项</text>
     <input class="new-todo" placeholder="添加新的待办事项" bindinput="onInputChange" bindconfirm="addTodo" />
   </view>
+
+  <!-- 日期选择器 -->
+  <view wx:if="{{showDatePicker}}" class="date-picker-modal">
+    <picker mode="date" bindchange="onDateChange" start="{{minDate}}" value="{{selectedDate}}">
+      <view class="date-picker-content">
+        <text class="date-picker-text">请选择完成日期</text>
+      </view>
+    </picker>
+  </view>
   <scroll-view class="todo-list" scroll-y>
-    <block wx:for="{{todos}}" wx:key="id">
-      <view class="todo-item">
-        <!-- 第一行：复选框和待办文本 -->
-          <view class="checkbox-wrapper" bindtap="toggleTodo" data-id="{{item._id}}">
-            <view class="checkbox {{item.completed ? 'checked' : ''}}"></view>
-          </view>
-          <text class="todo-text {{item.completed ? 'completed' : ''}}">{{item.text}}</text>
-        <!-- 第二行：时间和删除按钮 -->
-          <button class="delete-btn" bindtap="deleteTodo" data-id="{{item._id}}">
-            <text class="delete-text">删除</text>
-            <text class="delete-time">{{item.createdAt}}</text> <!-- 时间放在按钮内部 -->
-          </button>
+    <block wx:for="{{groupedTodos}}" wx:key="date">
+      <view class="date-group">
+        <view class="date-label" bindtap="showAddCompletedInput" data-date="{{item.date}}">
+          {{item.date}}
         </view>
+        <!-- 新增：输入框 -->
+        <view wx:if="{{activeDate === item.date}}" class="completed-input-wrapper">
+          <input 
+            class="completed-input" 
+            placeholder="输入已完成的事项" 
+            bindinput="onCompletedInputChange" 
+            bindconfirm="addCompletedTodo"
+            value="{{completedInput}}"
+          />
+        </view>
+        <block wx:for="{{item.items}}" wx:key="_id">
+          <view class="todo-item">
+            <view class="checkbox-wrapper" bindtap="toggleTodo" data-id="{{item._id}}">
+              <view class="checkbox {{item.completed ? 'checked' : ''}}"></view>
+            </view>
+            <text class="todo-text {{item.completed ? 'completed' : ''}}">{{item.text}}</text>
+            <button class="delete-btn" bindtap="deleteTodo" data-id="{{item._id}}">
+              <text class="delete-text">删除</text>
+            </button>
+          </view>
+        </block>
+      </view>
     </block>
   </scroll-view>
   <button class="subscribe-btn" bindtap="showSubscribeModal">消息通知</button>
@@ -25,6 +48,43 @@
       <text class="modal-text">是否允许接收待办事项通知？</text>
       <button class="modal-btn" bindtap="requestSubscribeMessage">允许</button>
       <button class="modal-btn cancel-btn" bindtap="closeSubscribeModal">取消</button>
-    </view> <!-- 添加结束标签 -->
-  </view> <!-- 添加结束标签 -->
-</view> <!-- 添加结束标签 -->
+    </view>
+  </view>
+</view>
+
+<!-- 日历选择器 -->
+<view wx:if="{{showCalendar}}" class="calendar-modal">
+  <view class="calendar-container">
+    <!-- 月份切换 -->
+    <view class="calendar-header">
+      <button class="month-btn" bindtap="changeMonth" data-delta="-1">‹</button>
+      <text class="month-text">{{calendarYear}}年{{calendarMonth}}月</text>
+      <button class="month-btn" bindtap="changeMonth" data-delta="1">›</button>
+    </view>
+
+    <!-- 星期 -->
+    <view class="weekdays">
+      <text>日</text>
+      <text>一</text>
+      <text>二</text>
+      <text>三</text>
+      <text>四</text>
+      <text>五</text>
+      <text>六</text>
+    </view>
+
+    <!-- 日期 -->
+    <view class="calendar-grid">
+      <block wx:for="{{calendarDays}}" wx:key="index">
+        <view 
+          class="calendar-day {{item.disabled ? 'disabled' : ''}}"
+          bindtap="selectDate"
+          data-day="{{item.day}}"
+        >
+          {{item.day}}
+        </view>
+      </block>
+    </view>
+  </view>
+</view>
+
