@@ -1,38 +1,37 @@
 const cloud = require('wx-server-sdk');
-cloud.init();
+cloud.init({
+  env: 'liangliang-env-4gitrna94bbe96fe' // 替换为你的环境 ID
+});
 
 exports.main = async (event, context) => {
   const db = cloud.database();
 
-  async async function notifyUsers() {
+  async function notifyUsers() {
     try {
-    // 查询所有订阅的用户
     const subscriptions = await db.collection('subscriptions').get();
 
-    // 推送消息给每个订阅用户
     const promises = subscriptions.data.map(async user => {
     return cloud.openapi.subscribeMessage.send({
-        touser: user.openid, // 用户的 openid
-        templateId: '14lu1h_J8fljME1O0ME1ecucn59dMQ84QvcSwF_M88I', // 更新后的模板 ID
-        page: 'pages/todolist/todolist', // 跳转的页面
+          touser: user.openid,
+          templateId: '14lu1h_J8fljME1O0ME1ecucn59dMQ84QvcSwF_M88I',
+          page: 'pages/todolist/todolist',
       data: {
-            date4: { value: new Date().toLocaleString() }, // 日程时间
-            thing5: { value: event.todo.text } // 日程标题
-      }
+            date4: { value: new Date().toLocaleString() },
+            thing5: { value: event.todo.text },
+          },
     });
   });
 
-    // 等待所有推送完成
     await Promise.all(promises);
 
     return {
       success: true,
-      message: '消息推送成功'
+        message: '消息推送成功',
 };
   } catch (error) {
     return {
       success: false,
-      error: error.message
+        error: error.message,
     };
   }
   }

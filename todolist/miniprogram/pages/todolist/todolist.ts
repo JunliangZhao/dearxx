@@ -304,16 +304,29 @@ Page({
       dueDate, // 使用解析后的 Date 对象
       date: this.data.globalDueDate, // 保留原始 YY-MM-DD 格式
     };
+
     db.collection('todos').add({
       data: newTodo,
       success: res => {
         console.log('待办事项添加成功', res);
         this.setData({ newTodo: '' });
+
+        // 调用云函数通知订阅用户
+        wx.cloud.callFunction({
+          name: 'notifyUsers',
+          data: { todo: newTodo },
+          success: res => {
+            console.log('通知订阅用户成功：', res.result);
       },
       fail: err => {
-        console.error('待办事项添加失败', err);
+            console.error('通知订阅用户失败：', err);
       },
 });
+  },
+      fail: err => {
+        console.error('待办事项添加失败', err);
+  },
+    });
   },
 
   deleteTodo(e: any) {
