@@ -3,36 +3,47 @@ import { formatDate } from "../../utils/util";
 Page({
   data: {
     todos: [],
+    groupedTodos: [],
     watcher: null,
     showSubscribeModal: false,
     activeDate: null,
     completedInput: '',
     showDatePicker: false, // 控制日期选择器显示
-    selectedDate: formatDate(new Date()), // 默认选中当天
-    minDate: formatDate(new Date()), // 最小日期
-    globalDueDate: formatDate(new Date()), // 页面级别的完成日期
+    selectedDate: formatDate(new Date(), 'YY-MM-DD'), // 默认选中当天
+    minDate: formatDate(new Date(), 'YY-MM-DD'), // 最小日期
+    globalDueDate: formatDate(new Date(), 'YY-MM-DD'), // 页面级别的完成日期
+    isLoading: true, // 新增：加载状态
   },
 
   onLoad() {
+    this.loadTodosFromCache(); // 优先加载缓存数据
     this.startRealtimeListener();
     // 修改：直接绑定页面点击事件
     wx.onPageTap = this.onPageTap.bind(this); // 替代 wx.getCurrentPages()[0].onTap
   },
 
+  // 优化：优先加载缓存数据
+  loadTodosFromCache() {
+    const cachedTodos = wx.getStorageSync('todos');
+    if (cachedTodos) {
+      this.setData({ groupedTodos: cachedTodos });
+    }
+  },
+
+  // 优化：首次加载时显示加载动画
   startRealtimeListener() {
+    wx.showLoading({ title: '加载中...' }); // 显示加载动画
     const db = wx.cloud.database();
 
     const watcher = db.collection('todos').watch({
       onChange: snapshot => {
         const todos = snapshot.docs.map(todo => ({
           ...todo,
-          // 确保只返回 MM-DD 格式
           createdAt: todo.createdAt ? formatDate(new Date(todo.createdAt), 'YY-MM-DD') : '',
-          // 修改：优先使用完成时间，如果没有则使用创建时间
           date: todo.dueDate ? formatDate(new Date(todo.dueDate), 'YY-MM-DD') : 
                 todo.createdAt ? formatDate(new Date(todo.createdAt), 'YY-MM-DD') : '无日期'
         }));
-        // 按天分组
+
         const groupedTodos = todos.reduce((acc, todo) => {
           const dateKey = todo.date;
           if (!acc[dateKey]) {
@@ -41,7 +52,7 @@ Page({
           acc[dateKey].push(todo);
           return acc;
         }, {});
-        // 将分组后的数据转换为数组并排序
+
         const sortedGroups = Object.entries(groupedTodos)
           .sort(([dateA], [dateB]) => {
             if (dateA === '无日期') return 1;
@@ -52,15 +63,27 @@ Page({
             date,
             items: items.sort((a, b) => a.completed - b.completed)
           }));
-  
-        this.setData({ groupedTodos: sortedGroups });
+
+        this.setData({ groupedTodos: sortedGroups, isLoading: false });
+        wx.setStorageSync('todos', sortedGroups); // 缓存数据
+        wx.hideLoading(); // 隐藏加载动画
       },
       onError: err => {
         console.error('监听失败', err);
+        wx.hideLoading(); // 隐藏加载动画
+        this.reconnectWatcher(); // 自动重连
       }
     });
-  
+
     this.setData({ watcher });
+  },
+
+  // 优化：自动重连实时监听
+  reconnectWatcher() {
+    setTimeout(() => {
+      console.log('尝试重新连接实时监听...');
+      this.startRealtimeListener();
+    }, 5000); // 5秒后重连
   },
 
   onUnload() {
@@ -130,7 +153,7 @@ Page({
       });
       return;
     }
-
+  
     // 如果是未来日期，则不允许点击
     if (date !== '无日期') {
       const selectedDate = new Date(date);
@@ -212,7 +235,6 @@ Page({
         newTodo.date = formatDate(selectedDate);
       }
     }
-
     db.collection('todos').add({
       data: newTodo,
       success: res => {
