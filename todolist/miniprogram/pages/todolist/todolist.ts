@@ -1,4 +1,4 @@
-import { formatTime,formatDate } from "../../utils/util";
+import { formatDate } from "../../utils/util";
 
 Page({
   data: {
@@ -8,9 +8,9 @@ Page({
     activeDate: null,
     completedInput: '',
     showDatePicker: false, // 控制日期选择器显示
-    selectedDate: formatTime(new Date(), 'YYYY-MM-DD'), // 默认选中当天
-    minDate: formatTime(new Date(), 'YYYY-MM-DD'), // 最小日期
-    globalDueDate: formatTime(new Date(), 'YYYY-MM-DD'), // 页面级别的完成日期
+    selectedDate: formatDate(new Date()), // 默认选中当天
+    minDate: formatDate(new Date()), // 最小日期
+    globalDueDate: formatDate(new Date()), // 页面级别的完成日期
   },
 
   onLoad() {
@@ -237,7 +237,7 @@ Page({
       text: this.data.completedInput,
       completed: true,
       createdAt: new Date(selectedDate),
-      date: formatTime(new Date(selectedDate), 'YY-MM-DD')
+      date: formatDate(new Date(selectedDate))
     };
 
     db.collection('todos').add({
