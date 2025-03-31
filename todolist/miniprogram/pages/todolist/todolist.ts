@@ -15,8 +15,8 @@ Page({
 
   onLoad() {
     this.startRealtimeListener();
-    // 绑定页面点击事件
-    wx.getCurrentPages()[0].onTap = this.onPageTap.bind(this);
+    // 修改：直接绑定页面点击事件
+    wx.onPageTap = this.onPageTap.bind(this); // 替代 wx.getCurrentPages()[0].onTap
   },
 
   startRealtimeListener() {
@@ -230,29 +230,10 @@ Page({
 
   // 新增：处理日期选择
   onDateChange(e: any) {
-    const selectedDate = e.detail.value;
-
-    const db = wx.cloud.database();
-    const newTodo = {
-      text: this.data.completedInput,
-      completed: true,
-      createdAt: new Date(selectedDate),
-      date: formatDate(new Date(selectedDate))
-    };
-
-    db.collection('todos').add({
-      data: newTodo,
-      success: res => {
-        console.log('已完成事项添加成功', res);
+    const selectedDate = formatDate(new Date(e.detail.value), 'YY-MM-DD'); // 转换为 YY-MM-DD 格式
         this.setData({
-          completedInput: '',
-          activeDate: null,
-          showDatePicker: false
-        });
-      },
-      fail: err => {
-        console.error('已完成事项添加失败', err);
-      }
+      globalDueDate: selectedDate, // 更新页面级别的完成日期
+      showDatePicker: false,
     });
   },
 
@@ -277,15 +258,30 @@ Page({
   // 修改：添加待办事项
   addTodo() {
     if (!this.data.newTodo.trim()) return;
-
     const db = wx.cloud.database();
+
+    // 解析 YY-MM-DD 格式的 globalDueDate 并转换为 Date 对象
+    const globalDueDateParts = this.data.globalDueDate.split('-');
+    const year = 2000 + parseInt(globalDueDateParts[0]); // YY 转换为 YYYY
+    const month = parseInt(globalDueDateParts[1]) - 1; // 月份从 0 开始
+    const day = parseInt(globalDueDateParts[2]);
+    const dueDate = new Date(year, month, day);
+
+    if (isNaN(dueDate.getTime())) {
+      wx.showToast({
+        title: '完成日期格式错误',
+        icon: 'none',
+      });
+      return;
+    }
+  
     const newTodo = {
       text: this.data.newTodo,
       completed: false,
       createdAt: new Date(), // 创建时间使用当前时间
-      dueDate: new Date(this.data.globalDueDate), // 使用页面级别的完成日期
+      dueDate, // 使用解析后的 Date 对象
+      date: this.data.globalDueDate, // 保留原始 YY-MM-DD 格式
     };
-
     db.collection('todos').add({
       data: newTodo,
       success: res => {
@@ -295,22 +291,12 @@ Page({
       fail: err => {
         console.error('待办事项添加失败', err);
       },
-    });
-  },
-
-  // 新增：处理日期选择
-  onDateChange(e: any) {
-    const selectedDate = e.detail.value;
-    this.setData({
-      globalDueDate: selectedDate, // 更新页面级别的完成日期
-      showDatePicker: false,
-    });
+});
   },
 
   deleteTodo(e: any) {
     const id = e.currentTarget.dataset.id;
     const db = wx.cloud.database();
-  
     db.collection('todos')
       .doc(id)
       .remove()
@@ -319,7 +305,7 @@ Page({
       })
       .catch(err => {
         console.error('删除待办事项失败', err);
-      });
+});
   },
 
   toggleTodo(e: any) {
