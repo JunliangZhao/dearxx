@@ -9,7 +9,8 @@ Page({
     completedInput: '',
     showDatePicker: false, // 控制日期选择器显示
     selectedDate: formatTime(new Date(), 'YYYY-MM-DD'), // 默认选中当天
-    minDate: formatTime(new Date(), 'YYYY-MM-DD') // 最小日期
+    minDate: formatTime(new Date(), 'YYYY-MM-DD'), // 最小日期
+    globalDueDate: formatTime(new Date(), 'YYYY-MM-DD'), // 页面级别的完成日期
   },
 
   onLoad() {
@@ -277,42 +278,39 @@ Page({
   addTodo() {
     if (!this.data.newTodo.trim()) return;
 
-    // 弹出日期选择器
-    this.setData({ showDatePicker: true });
-  },
-
-  // 新增：处理日期选择
-  onDateChange(e: any) {
-    const selectedDate = e.detail.value;
-
     const db = wx.cloud.database();
     const newTodo = {
       text: this.data.newTodo,
       completed: false,
       createdAt: new Date(), // 创建时间使用当前时间
-      dueDate: new Date(selectedDate) // 完成时间使用用户选择的时间
+      dueDate: new Date(this.data.globalDueDate), // 使用页面级别的完成日期
     };
 
     db.collection('todos').add({
       data: newTodo,
       success: res => {
         console.log('待办事项添加成功', res);
-        this.setData({ 
-          newTodo: '',
-          showDatePicker: false,
-          selectedDate: formatTime(new Date(), 'YYYY-MM-DD') // 重置为当天
-        });
+        this.setData({ newTodo: '' });
       },
       fail: err => {
         console.error('待办事项添加失败', err);
-      }
+      },
+    });
+  },
+
+  // 新增：处理日期选择
+  onDateChange(e: any) {
+    const selectedDate = e.detail.value;
+    this.setData({
+      globalDueDate: selectedDate, // 更新页面级别的完成日期
+      showDatePicker: false,
     });
   },
 
   deleteTodo(e: any) {
     const id = e.currentTarget.dataset.id;
     const db = wx.cloud.database();
-
+  
     db.collection('todos')
       .doc(id)
       .remove()
@@ -352,6 +350,6 @@ Page({
       })
       .catch(err => {
         console.error('更新待办事项失败', err);
-      });
+});
   }
 });

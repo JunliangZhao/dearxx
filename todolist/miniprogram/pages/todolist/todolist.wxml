@@ -2,6 +2,9 @@
   <view class="header">
     <text class="title">待办事项</text>
     <input class="new-todo" placeholder="添加新的待办事项" bindinput="onInputChange" bindconfirm="addTodo" />
+    <picker mode="date" bindchange="onDateChange" start="{{minDate}}" value="{{globalDueDate}}">
+      <button class="date-picker-btn">完成日期：{{globalDueDate}}</button>
+    </picker>
   </view>
 
   <!-- 日期选择器 -->
@@ -87,4 +90,3 @@
     </view>
   </view>
 </view>
-
