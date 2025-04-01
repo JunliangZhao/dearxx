@@ -23,6 +23,15 @@
           {{collapsedState[item.date] ? '展开' : '折叠'}}
         </button>
       </view>
+      <view wx:if="{{activeDate === item.date}}" class="completed-input-wrapper">
+        <input
+          class="completed-input"
+          placeholder="添加已完成事项"
+          bindinput="onCompletedInputChange"
+          bindblur="addCompletedTodo"
+          value="{{completedInput}}"
+        />
+      </view>
       <view wx:if="{{!collapsedState[item.date]}}">
         <block wx:for="{{item.items}}" wx:key="_id">
           <view class="todo-item">
@@ -33,10 +42,10 @@
             <button class="delete-btn" bindtap="deleteTodo" data-id="{{item._id}}">
               <text class="delete-text">删除</text>
             </button>
+          </view>
+        </block>
       </view>
     </block>
-    </view>
-      </block>
   </scroll-view>
   <button class="subscribe-btn" bindtap="showSubscribeModal">消息通知</button>
   <view wx:if="{{showSubscribeModal}}" class="subscribe-modal">
