@@ -13,10 +13,12 @@ Page({
     minDate: formatDate(new Date(), 'YY-MM-DD'), // 最小日期
     globalDueDate: formatDate(new Date(), 'YY-MM-DD'), // 页面级别的完成日期
     isLoading: true, // 新增：加载状态
+    collapsedState: {}, // 新增：折叠状态
   },
 
   onLoad() {
     this.loadTodosFromCache(); // 优先加载缓存数据
+    this.loadCollapsedState(); // 加载折叠状态
     this.startRealtimeListener();
     // 修改：直接绑定页面点击事件
     wx.onPageTap = this.onPageTap.bind(this); // 替代 wx.getCurrentPages()[0].onTap
@@ -372,5 +374,18 @@ Page({
       .catch(err => {
         console.error('更新待办事项失败', err);
 });
+  },
+
+  loadCollapsedState() {
+    const collapsedState = wx.getStorageSync('collapsedState') || {};
+    this.setData({ collapsedState });
+  },
+
+  toggleCollapse(e: any) {
+    const date = e.currentTarget.dataset.date;
+    const collapsedState = { ...this.data.collapsedState };
+    collapsedState[date] = !collapsedState[date];
+    this.setData({ collapsedState });
+    wx.setStorageSync('collapsedState', collapsedState); // 缓存折叠状态
   }
 });

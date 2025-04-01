@@ -16,21 +16,14 @@
     </picker>
   </view>
   <scroll-view class="todo-list" scroll-y>
-    <block wx:for="{{groupedTodos}}" wx:key="date">
-      <view class="date-group">
-        <view class="date-label" bindtap="showAddCompletedInput" data-date="{{item.date}}">
-          {{item.date}}
-        </view>
-        <!-- 新增：输入框 -->
-        <view wx:if="{{activeDate === item.date}}" class="completed-input-wrapper">
-          <input 
-            class="completed-input" 
-            placeholder="输入已完成的事项" 
-            bindinput="onCompletedInputChange" 
-            bindconfirm="addCompletedTodo"
-            value="{{completedInput}}"
-          />
-        </view>
+    <block wx:for="{{groupedTodos}}" wx:key="date" class="date-group">
+      <view class="date-label" bindtap="showAddCompletedInput" data-date="{{item.date}}">
+        <text>{{item.date}}</text>
+        <button class="collapse-btn" bindtap="toggleCollapse" data-date="{{item.date}}">
+          {{collapsedState[item.date] ? '展开' : '折叠'}}
+        </button>
+      </view>
+      <view wx:if="{{!collapsedState[item.date]}}">
         <block wx:for="{{item.items}}" wx:key="_id">
           <view class="todo-item">
             <view class="checkbox-wrapper" bindtap="toggleTodo" data-id="{{item._id}}">
@@ -40,10 +33,10 @@
             <button class="delete-btn" bindtap="deleteTodo" data-id="{{item._id}}">
               <text class="delete-text">删除</text>
             </button>
-          </view>
-        </block>
       </view>
     </block>
+    </view>
+      </block>
   </scroll-view>
   <button class="subscribe-btn" bindtap="showSubscribeModal">消息通知</button>
   <view wx:if="{{showSubscribeModal}}" class="subscribe-modal">
@@ -79,7 +72,7 @@
     <!-- 日期 -->
     <view class="calendar-grid">
       <block wx:for="{{calendarDays}}" wx:key="index">
-        <view 
+        <view
           class="calendar-day {{item.disabled ? 'disabled' : ''}}"
           bindtap="selectDate"
           data-day="{{item.day}}"
