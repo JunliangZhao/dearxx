@@ -19,7 +19,7 @@
     <block wx:for="{{groupedTodos}}" wx:key="date" class="date-group">
       <view class="date-label" bindtap="showAddCompletedInput" data-date="{{item.date}}">
         <text>{{item.date}}</text>
-        <button class="collapse-btn" bindtap="toggleCollapse" data-date="{{item.date}}">
+        <button class="collapse-btn" catchtap="toggleCollapse" data-date="{{item.date}}">
           {{collapsedState[item.date] ? '展开' : '折叠'}}
         </button>
       </view>
