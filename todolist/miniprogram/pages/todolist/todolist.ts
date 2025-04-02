@@ -473,4 +473,100 @@ fetchOrCreateUserDocument(userId: string): Promise<any> {
             
         });
     },
+
+  // 新增：处理已完成事项的提交
+  addCompletedTodo() {
+    const completedText = this.data.completedInput.trim();
+    if (!completedText) {
+      wx.showToast({
+        title: '请输入已完成事项',
+        icon: 'none'
+      });
+      return;
+    }
+
+    const db = wx.cloud.database();
+    const newCompletedItem: any = {
+      text: completedText,
+      completed: true,
+      createdAt: new Date(),
+      date: this.data.activeDate
+    };
+
+    // 如果是个人模式，添加itemKey
+    if (this.data.isPersonalMode) {
+      const itemKey = `${Date.now()}_${this.data.userId}`;
+      newCompletedItem.itemKey = itemKey;
+      // 更新本地缓存的itemKeys
+      this.setData({
+        itemKeys: [...this.data.itemKeys, itemKey]
+      });
+    }
+
+    // 先更新UI
+    const updatedGroupedTodos = [...this.data.groupedTodos];
+    const groupIndex = updatedGroupedTodos.findIndex(group => group.date === this.data.activeDate);
+    if (groupIndex !== -1) {
+      updatedGroupedTodos[groupIndex].items.push(newCompletedItem);
+    } else {
+      updatedGroupedTodos.push({ date: this.data.activeDate, items: [newCompletedItem] });
+    }
+    this.setData({ 
+      groupedTodos: updatedGroupedTodos,
+      completedInput: '',
+      activeDate: null
+    });
+
+    // 再同步数据库
+    db.collection('todos').add({
+      data: newCompletedItem,
+      success: res => {
+        console.log('已完成事项添加成功', res);
+        // 更新UI中的_id
+        const addedId = res._id;
+        const updatedGroupedTodos = this.data.groupedTodos.map(group => ({
+          ...group,
+          items: group.items.map(item => 
+            item === newCompletedItem ? { ...item, _id: addedId } : item
+          ),
+        }));
+        this.setData({ groupedTodos: updatedGroupedTodos });
+
+        // 如果是个人模式，同步更新users表的itemKeys
+        if (this.data.isPersonalMode && newCompletedItem.itemKey) {
+          db.collection('users').doc(this.data.userId).update({
+            data: {
+              itemKeys: db.command.addToSet(newCompletedItem.itemKey),
+            },
+            success: () => {
+              console.log('itemKey 更新成功');
+            },
+            fail: err => {
+              console.error('itemKey 更新失败', err);
+              // 回滚本地缓存的itemKeys
+              this.setData({
+                itemKeys: this.data.itemKeys.filter(key => key !== newCompletedItem.itemKey)
+              });
+            }
+          });
+        }
+      },
+      fail: err => {
+        console.error('已完成事项添加失败', err);
+        // 回滚UI和本地缓存的itemKeys
+        const updatedGroupedTodos = this.data.groupedTodos.map(group => ({
+          ...group,
+          items: group.items.filter(item => item !== newCompletedItem),
+        }));
+        this.setData({ 
+          groupedTodos: updatedGroupedTodos,
+          itemKeys: this.data.itemKeys.filter(key => key !== newCompletedItem.itemKey)
+        });
+        wx.showToast({
+          title: '添加失败，请重试',
+          icon: 'none'
+        });
+      }
+    });
+  },
 });
