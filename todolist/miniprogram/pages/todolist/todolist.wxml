@@ -6,7 +6,11 @@
       <button class="date-picker-btn">完成日期：{{globalDueDate}}</button>
     </picker>
   </view>
-
+<view class="mode-switch">
+  <button class="mode-btn" bindtap="toggleMode">
+    {{isPersonalMode ? '个人模式' : '公共模式'}}
+  </button>
+</view>
   <!-- 日期选择器 -->
   <view wx:if="{{showDatePicker}}" class="date-picker-modal">
     <picker mode="date" bindchange="onDateChange" start="{{minDate}}" value="{{selectedDate}}">
