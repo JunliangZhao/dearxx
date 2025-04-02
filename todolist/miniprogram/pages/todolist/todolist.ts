@@ -16,6 +16,7 @@ Page({
     collapsedState: {}, // 新增：折叠状态
     isPersonalMode: false, // 新增：个人模式状态
     userId: '', // 新增：页面级别的 userId
+    itemKeys: [], // 新增：本地缓存的itemKeys
   },
 
   onLoad() {
@@ -26,7 +27,7 @@ Page({
         console.log('用户登录成功，userId:', res.result.openid);
 
         // 确保登录成功后再启动实时监听器
-    this.loadTodosFromCache(); // 优先加载缓存数据
+
     this.loadCollapsedState(); // 加载折叠状态
     this.startRealtimeListener();
   },
@@ -54,68 +55,99 @@ Page({
   startRealtimeListener() {
     wx.showLoading({ title: '加载中...' }); // 显示加载动画
     const db = wx.cloud.database();
-    const isPersonalMode = this.data.isPersonalMode; // 获取当前模式
 
-    const fetchItemKeys = isPersonalMode
-        ? this.fetchOrCreateUserDocument(this.data.userId).then(userDoc => userDoc.itemKeys || [])
-        : Promise.resolve([]); // 公共模式直接返回空数组
+    if (this.data.watcher) {
+      this.data.watcher.close();
+      this.setData({ watcher: null }); // 清除当前 watcher
+    }
 
-    fetchItemKeys.then(itemKeys => {
-        if (this.data.watcher) {
-            this.data.watcher.close();
-            this.setData({ watcher: null }); // 清除当前 watcher
-        }
+    // 获取用户的 itemKeys
+    this.fetchOrCreateUserDocument(this.data.userId)
+      .then(userDoc => {
+        const itemKeys = userDoc.itemKeys || [];
+        // 更新本地缓存的itemKeys
+        this.setData({ itemKeys });
 
-        const watcher = db.collection('todos')
-            .where(isPersonalMode
-                ? { itemKey: db.command.in(itemKeys) } // 个人模式匹配 itemKey 在 itemKeys 中的项目
-                : { itemKey: db.command.exists(false) }) // 公共模式匹配 itemKey 不存在的项目
-            .watch({
-                onChange: snapshot => {
-                    const todos = snapshot.docs.map(todo => ({
-                        ...todo,
-            createdAt: todo.createdAt ? formatDate(new Date(todo.createdAt), 'YY-MM-DD') : '',
-        date: todo.dueDate ? formatDate(new Date(todo.dueDate), 'YY-MM-DD') :
-                  todo.createdAt ? formatDate(new Date(todo.createdAt), 'YY-MM-DD') : '无日期',
-        }));
+        const watcher = db.collection('todos').watch({
+          onChange: snapshot => {
+            const todos = snapshot.docs.map(todo => ({
+              ...todo,
+              createdAt: todo.createdAt ? formatDate(new Date(todo.createdAt), 'YY-MM-DD') : '',
+              date: todo.dueDate ? formatDate(new Date(todo.dueDate), 'YY-MM-DD') :
+                todo.createdAt ? formatDate(new Date(todo.createdAt), 'YY-MM-DD') : '无日期',
+            }));
 
-                    const groupedTodos = todos.reduce((acc, todo) => {
-            const dateKey = todo.date;
-            if (!acc[dateKey]) {
+            // 使用本地缓存的itemKeys过滤个人模式数据
+            const personalTodos = todos.filter(todo => this.data.itemKeys.includes(todo.itemKey));
+            // 公共模式：不存在 itemKey 的待办事项
+            const publicTodos = todos.filter(todo => !todo.itemKey);
+
+            // 处理公共数据
+            const groupedPublicTodos = publicTodos.reduce((acc, todo) => {
+              const dateKey = todo.date;
+              if (!acc[dateKey]) {
                 acc[dateKey] = [];
-            }
-            acc[dateKey].push(todo);
-            return acc;
-        }, {});
+              }
+              acc[dateKey].push(todo);
+              return acc;
+            }, {});
 
-        const sortedGroups = Object.entries(groupedTodos)
-            .sort(([dateA], [dateB]) => {
+            const sortedPublicGroups = Object.entries(groupedPublicTodos)
+              .sort(([dateA], [dateB]) => {
                 if (dateA === '无日期') return 1;
                 if (dateB === '无日期') return -1;
                 return dateB.localeCompare(dateA);
-            })
-            .map(([date, items]) => ({
+              })
+              .map(([date, items]) => ({
                 date,
                 items: items.sort((a, b) => a.completed - b.completed)
-            }));
+              }));
 
-                    this.setData({ groupedTodos: sortedGroups, isLoading: false });
-        wx.setStorageSync('todos', sortedGroups); // 缓存数据
-                    wx.hideLoading(); // 隐藏加载动画
-},
-                onError: err => {
-                    console.error('监听失败', err);
-                    wx.hideLoading(); // 隐藏加载动画
-                    this.reconnectWatcher(); // 自动重连
-                }
-    });
+            // 处理个人数据
+            const groupedPersonalTodos = personalTodos.reduce((acc, todo) => {
+              const dateKey = todo.date;
+              if (!acc[dateKey]) {
+                acc[dateKey] = [];
+              }
+              acc[dateKey].push(todo);
+              return acc;
+            }, {});
+
+            const sortedPersonalGroups = Object.entries(groupedPersonalTodos)
+              .sort(([dateA], [dateB]) => {
+                if (dateA === '无日期') return 1;
+                if (dateB === '无日期') return -1;
+                return dateB.localeCompare(dateA);
+              })
+              .map(([date, items]) => ({
+                date,
+                items: items.sort((a, b) => a.completed - b.completed)
+              }));
+
+            // 将数据存储在内存中
+            this.setData({
+              publicTodos: sortedPublicGroups,
+              personalTodos: sortedPersonalGroups,
+              groupedTodos: this.data.isPersonalMode ? sortedPersonalGroups : sortedPublicGroups,
+              isLoading: false
+            });
+
+            wx.hideLoading(); // 隐藏加载动画
+          },
+          onError: err => {
+            console.error('监听失败', err);
+            wx.hideLoading(); // 隐藏加载动画
+            this.reconnectWatcher(); // 自动重连
+          }
+        });
 
         this.setData({ watcher });
-    }).catch(err => {
+      })
+      .catch(err => {
         console.error('获取用户 itemKeys 失败', err);
         wx.hideLoading(); // 隐藏加载动画
         this.reconnectWatcher(); // 自动重连
-    });
+      });
   },
 
   // 优化：自动重连实时监听
@@ -231,7 +263,7 @@ Page({
     this.setData({ completedInput: e.detail.value });
   },
 
-  // 修改：添加待办事项时同步更新 users 表的 itemKeys
+  // 修改：添加待办事项
   addTodo() {
     if (!this.data.newTodo.trim()) return;
     const db = wx.cloud.database();
@@ -252,215 +284,145 @@ Page({
     const newTodo: any = {
       text: this.data.newTodo,
       completed: false,
-        createdAt: new Date(),
-        dueDate,
-        date: this.data.globalDueDate,
+      createdAt: new Date(),
+      dueDate,
+      date: this.data.globalDueDate,
     };
 
     if (this.data.isPersonalMode) {
       const itemKey = `${Date.now()}_${this.data.userId}`;
       newTodo.itemKey = itemKey;
+      // 更新本地缓存的itemKeys
+      this.setData({
+        itemKeys: [...this.data.itemKeys, itemKey]
+      });
     }
 
-    // 数据库操作
+    // 先更新UI
+    const updatedGroupedTodos = [...this.data.groupedTodos];
+    const groupIndex = updatedGroupedTodos.findIndex(group => group.date === newTodo.date);
+    if (groupIndex !== -1) {
+      updatedGroupedTodos[groupIndex].items.push(newTodo);
+    } else {
+      updatedGroupedTodos.push({ date: newTodo.date, items: [newTodo] });
+    }
+    this.setData({ groupedTodos: updatedGroupedTodos, newTodo: '' });
+
+    // 再同步数据库
     db.collection('todos').add({
       data: newTodo,
       success: res => {
         console.log('待办事项添加成功', res);
-            const addedTodoId = res._id;
+        // 更新UI中的_id
+        const addedTodoId = res._id;
+        const updatedGroupedTodos = this.data.groupedTodos.map(group => ({
+          ...group,
+          items: group.items.map(item => 
+            item === newTodo ? { ...item, _id: addedTodoId } : item
+          ),
+        }));
+        this.setData({ groupedTodos: updatedGroupedTodos });
 
-            // 更新 UI 中的 _id
-            const updatedGroupedTodos = [...this.data.groupedTodos];
-            const groupIndex = updatedGroupedTodos.findIndex(group => group.date === newTodo.date);
-            if (groupIndex !== -1) {
-                updatedGroupedTodos[groupIndex].items.push({ ...newTodo, _id: addedTodoId });
-    } else {
-                updatedGroupedTodos.push({ date: newTodo.date, items: [{ ...newTodo, _id: addedTodoId }] });
+        // 同步更新users表的itemKeys
+        if (this.data.isPersonalMode && newTodo.itemKey) {
+          db.collection('users').doc(this.data.userId).update({
+            data: {
+              itemKeys: db.command.addToSet(newTodo.itemKey),
+            },
+            success: () => {
+              console.log('itemKey 更新成功');
+            },
+            fail: err => {
+              console.error('itemKey 更新失败', err);
+              // 回滚本地缓存的itemKeys
+              this.setData({
+                itemKeys: this.data.itemKeys.filter(key => key !== newTodo.itemKey)
+              });
             }
-            this.setData({ groupedTodos: updatedGroupedTodos, newTodo: '' });
-
-            // 同步更新 users 表的 itemKeys
-            if (this.data.isPersonalMode) {
-                db.collection('users').doc(this.data.userId).update({
-                    data: {
-                        itemKeys: db.command.addToSet(newTodo.itemKey), // 添加新的 itemKey
-},
-                }).then(() => {
-                    console.log('用户 itemKeys 更新成功');
-                }).catch(err => {
-                    console.error('用户 itemKeys 更新失败', err);
-    });
-            }
-},
-        fail: err => {
-            console.error('待办事项添加失败', err);
+          });
         }
-    });
-},
-
-  // 修改：添加已完成的待办事项时同步更新 users 表的 itemKeys
-  addCompletedTodo() {
-    if (!this.data.completedInput.trim()) return;
-
-    const labelDate = this.data.activeDate;
-    if (!labelDate) {
-        wx.showToast({
-            title: '请选择有效日期',
-            icon: 'none'
+      },
+      fail: err => {
+        console.error('待办事项添加失败', err);
+        // 回滚UI和本地缓存的itemKeys
+        const updatedGroupedTodos = this.data.groupedTodos.map(group => ({
+          ...group,
+          items: group.items.filter(item => item !== newTodo),
+        }));
+        this.setData({ 
+          groupedTodos: updatedGroupedTodos,
+          itemKeys: this.data.itemKeys.filter(key => key !== newTodo.itemKey)
         });
-        return;
-    }
-    const db = wx.cloud.database();
-    const newTodo: any = {
-        text: this.data.completedInput,
-        completed: true
-    };
-
-    if (labelDate !== '无日期') {
-        const dateParts = labelDate.split('-');
-        if (dateParts.length === 3) {
-            const year = 2000 + parseInt(dateParts[0]);
-            const month = parseInt(dateParts[1]) - 1;
-            const day = parseInt(dateParts[2]);
-
-            const selectedDate = new Date(year, month, day);
-            selectedDate.setHours(0, 0, 0, 0);
-
-            if (isNaN(selectedDate.getTime())) {
-                wx.showToast({
-                    title: '日期格式错误',
-                    icon: 'none'
-                });
-                return;
-            }
-
-            newTodo.createdAt = selectedDate;
-            newTodo.dueDate = selectedDate;
-            newTodo.date = formatDate(selectedDate);
-        }
-    }
-    if (this.data.isPersonalMode) {
-        const itemKey = `${Date.now()}_${this.data.userId}`;
-        newTodo.itemKey = itemKey;
-    }
-
-    // 数据库操作
-    db.collection('todos').add({
-        data: newTodo,
-        success: res => {
-            console.log('已完成事项添加成功', res);
-            const addedTodoId = res._id;
-
-            // 更新 UI 中的 _id
-            const updatedGroupedTodos = [...this.data.groupedTodos];
-            const groupIndex = updatedGroupedTodos.findIndex(group => group.date === newTodo.date);
-            if (groupIndex !== -1) {
-                updatedGroupedTodos[groupIndex].items.push({ ...newTodo, _id: addedTodoId });
-    } else {
-                updatedGroupedTodos.push({ date: newTodo.date, items: [{ ...newTodo, _id: addedTodoId }] });
-            }
-            this.setData({
-                groupedTodos: updatedGroupedTodos,
-                completedInput: '',
-                activeDate: null
-            });
-
-            // 同步更新 users 表的 itemKeys
-            if (this.data.isPersonalMode) {
-                db.collection('users').doc(this.data.userId).update({
-                    data: {
-                        itemKeys: db.command.addToSet(newTodo.itemKey), // 添加新的 itemKey
-},
-                }).then(() => {
-                    console.log('用户 itemKeys 更新成功');
-                }).catch(err => {
-                    console.error('用户 itemKeys 更新失败', err);
-                });
-            }
-},
-        fail: err => {
-            console.error('已完成事项添加失败', err);
-        }
+      }
     });
-},
-
-  // 新增：处理日期选择
-  onDateChange(e: any) {
-    const selectedDate = formatDate(new Date(e.detail.value), 'YY-MM-DD'); // 转换为 YY-MM-DD 格式
-        this.setData({
-      globalDueDate: selectedDate, // 更新页面级别的完成日期
-      showDatePicker: false,
-    });
-},
-
-  // 新增：将日期字符串转换为 Date 对象
-  getDateFromString(dateString: string): Date {
-    if (dateString === '无日期') return new Date();
-    const [month, day] = dateString.split('-');
-    const year = new Date().getFullYear();
-    return new Date(year, parseInt, parseInt(day));
-},
-
-  // 新增：显示日期选择器
-  showDatePicker() {
-    this.setData({ showDatePicker: true });
-  },
-
-  // 新增：隐藏日期选择器
-  hideDatePicker() {
-    this.setData({ showDatePicker: false });
   },
 
   // 修改：删除待办事项
   deleteTodo(e: any) {
     const id = e.currentTarget.dataset.id;
-
     if (!id) {
-        console.error('待办事项 ID 为空，无法删除');
-        wx.showToast({
-            title: '删除失败，ID 为空',
-            icon: 'none',
-    });
-        return;
+      console.error('待办事项 ID 为空，无法删除');
+      wx.showToast({
+        title: '删除失败，ID 为空',
+        icon: 'none',
+      });
+      return;
     }
 
     const db = wx.cloud.database();
+    // 先更新UI
+    const updatedGroupedTodos = this.data.groupedTodos.map(group => ({
+      ...group,
+      items: group.items.filter(todo => todo._id !== id),
+    })).filter(group => group.items.length > 0);
+    this.setData({ groupedTodos: updatedGroupedTodos });
 
-    // 数据库操作
+    // 再同步数据库
     db.collection('todos')
-        .doc(id)
-        .remove()
-        .then(() => {
-            console.log('待办事项删除成功');
-            // 更新 UI
-            const updatedGroupedTodos = this.data.groupedTodos.map(group => ({
-                ...group,
-                items: group.items.filter(todo => todo._id !== id),
-            })).filter(group => group.items.length > 0);
-            this.setData({ groupedTodos: updatedGroupedTodos });
-        })
-        .catch(err => {
-            console.error('删除待办事项失败', err);
-        });
-},
+      .doc(id)
+      .remove()
+      .catch(err => {
+        console.error('删除待办事项失败', err);
+        // 回滚UI
+        this.startRealtimeListener();
+      });
+  },
 
   // 修改：切换完成状态
   toggleTodo(e: any) {
     const id = e.currentTarget.dataset.id;
     const db = wx.cloud.database();
 
-    // 数据库操作
+    // 找到待办事项
+    const todo = this.data.groupedTodos
+      .flatMap(group => group.items)
+      .find(item => item._id === id);
+
+    if (!todo) {
+      console.error('未找到对应的待办事项');
+      return;
+    }
+
+    // 先更新UI
+    const updatedGroupedTodos = this.data.groupedTodos.map(group => ({
+      ...group,
+      items: group.items.map(item => 
+        item._id === id ? { ...item, completed: !item.completed } : item
+      ),
+    }));
+    this.setData({ groupedTodos: updatedGroupedTodos });
+
+    // 再同步数据库
     db.collection('todos')
-        .doc(id)
-        .update({
-            data: { completed: !updatedGroupedTodos.find(group => group.items.some(todo => todo._id === id)).items.find(todo => todo._id === id).completed },
-        })
-            .then(() => {
-            console.log(`待办事项 ${id} 状态更新成功`);
-            })
-            .catch(err => {
-            console.error('更新待办事项失败', err);
-            });
+      .doc(id)
+      .update({
+        data: { completed: !todo.completed },
+      })
+      .catch(err => {
+        console.error('更新待办事项失败', err);
+        // 回滚UI
+        this.startRealtimeListener();
+      });
   },
 
   loadCollapsedState() {
@@ -477,118 +439,19 @@ Page({
   },
 
   toggleMode() {
-    const isPersonalMode = !this.data.isPersonalMode; // 切换模式
-    this.setData({ isPersonalMode }); // 更新模式状态
-
-    wx.showLoading({ title: '切换中...' }); // 显示切换加载动画
-
-    // 关闭当前监听
-    if (this.data.watcher) {
-        this.data.watcher.close();
-        this.setData({ watcher: null }); // 清除当前 watcher
-    }
-
-    // 重新启动监听
-    this.fetchOrCreateUserDocument(this.data.userId).then(() => {
-    this.startRealtimeListener();
-        wx.hideLoading(); // 隐藏加载动画
-    }).catch(err => {
-        console.error('切换模式时查询或创建用户文档失败', err);
-                wx.hideLoading(); // 隐藏加载动画
-            });
-},
-
-  refreshTodos() {
-    const db = wx.cloud.database();
-    const isPersonalMode = this.data.isPersonalMode;
-    const MAX_LIMIT = 20; // 每次查询的最大条数
-    let allTodos: any[] = []; // 用于存储所有查询结果
-
-    const fetchTodos = async (itemKeys: string[], skip = 0) => {
-        try {
-            const res = await db.collection('todos')
-                .where(isPersonalMode
-                    ? { itemKey: db.command.in(itemKeys) } // 个人模式匹配 itemKey 在 itemKeys 中的项目
-                    : { itemKey: db.command.exists(false) }) // 公共模式匹配 itemKey 不存在的项目
-                .skip(skip) // 跳过前 skip 条数据
-                .limit(MAX_LIMIT) // 每次查询最多 MAX_LIMIT 条数据
-                .get();
-
-            allTodos.push(...res.data); // 合并查询结果
-
-            if (res.data.length === MAX_LIMIT) {
-                // 如果本次查询返回的数据条数达到 MAX_LIMIT，说明可能还有更多数据
-                await fetchTodos(itemKeys, skip + MAX_LIMIT); // 递归查询下一页数据
-            }
-        } catch (err) {
-            console.error('查询待办事项失败', err);
-            throw err; // 抛出错误以便在调用处捕获
-        }
-    };
-
-    wx.showLoading({ title: '加载中...' }); // 显示加载动画
-
-    if (isPersonalMode) {
-        // 个人模式：先查询或创建用户文档获取 itemKeys
-        this.fetchOrCreateUserDocument(this.data.userId)
-            .then(userDoc => {
-                const itemKeys = userDoc.itemKeys || []; // 获取用户的 itemKeys
-                return fetchTodos(itemKeys); // 查询 todos 表
-            })
-            .then(() => {
-                this.processTodos(allTodos); // 处理并展示 todos
-                wx.hideLoading(); // 隐藏加载动画
-            })
-            .catch(err => {
-                console.error('个人模式查询失败', err);
-                wx.hideLoading(); // 隐藏加载动画
-            });
-    } else {
-        // 公共模式：直接查询 todos 表
-        fetchTodos([])
-            .then(() => {
-                this.processTodos(allTodos); // 处理并展示 todos
-                wx.hideLoading(); // 隐藏加载动画
-            })
-            .catch(err => {
-                console.error('公共模式查询失败', err);
-                wx.hideLoading(); // 隐藏加载动画
-            });
-    }
-},
-
-processTodos(todos: any[]) {
-    const formattedTodos = todos.map(todo => ({
-            ...todo,
-        _id: todo._id || '', // 确保 _id 存在
-            createdAt: todo.createdAt ? formatDate(new Date(todo.createdAt), 'YY-MM-DD') : '',
-        date: todo.dueDate ? formatDate(new Date(todo.dueDate), 'YY-MM-DD') :
-                  todo.createdAt ? formatDate(new Date(todo.createdAt), 'YY-MM-DD') : '无日期',
-        }));
-
-    const groupedTodos = formattedTodos.reduce((acc, todo) => {
-            const dateKey = todo.date;
-            if (!acc[dateKey]) {
-                acc[dateKey] = [];
-            }
-            acc[dateKey].push(todo);
-            return acc;
-        }, {});
-
-        const sortedGroups = Object.entries(groupedTodos)
-            .sort(([dateA], [dateB]) => {
-                if (dateA === '无日期') return 1;
-                if (dateB === '无日期') return -1;
-                return dateB.localeCompare(dateA);
-            })
-            .map(([date, items]) => ({
-                date,
-                items: items.sort((a, b) => a.completed - b.completed)
-            }));
-
-        this.setData({ groupedTodos: sortedGroups });
-        wx.setStorageSync('todos', sortedGroups); // 缓存数据
-},
+      const isPersonalMode = !this.data.isPersonalMode; // 切换模式
+      this.setData({ isPersonalMode }); // 更新模式状态
+  
+      wx.showLoading({ title: '切换中...' }); // 显示切换加载动画
+      console.log
+      // 从内存中获取数据，确保默认值为空数组
+      const currentGroups = isPersonalMode ? 
+        (this.data.personalTodos || []) : 
+        (this.data.publicTodos || []);
+      this.setData({ groupedTodos: currentGroups });
+  
+      wx.hideLoading(); // 隐藏加载动画
+    },
 
 // 新增：封装查询或创建用户文档的逻辑
 fetchOrCreateUserDocument(userId: string): Promise<any> {
