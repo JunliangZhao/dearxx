@@ -473,7 +473,15 @@ fetchOrCreateUserDocument(userId: string): Promise<any> {
             
         });
     },
-
+    onDateChange(e: any) {
+      const selectedDate = e.detail.value;
+      // 将日期格式化为 YY-MM-DD
+      const formattedDate = formatDate(new Date(selectedDate));
+      this.setData({
+        globalDueDate: formattedDate
+      });
+      console.log('选择的日期:', formattedDate);
+    },
   // 新增：处理已完成事项的提交
   addCompletedTodo() {
     const completedText = this.data.completedInput.trim();
@@ -570,3 +578,4 @@ fetchOrCreateUserDocument(userId: string): Promise<any> {
     });
   },
 });
+
